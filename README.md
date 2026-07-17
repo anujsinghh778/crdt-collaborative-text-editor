@@ -84,8 +84,6 @@ When integrating a node:
    ```bash
    npm start
    ```
-2. Open your browser and visit:
-   [http://localhost:3000](http://localhost:3000)
 
 ---
 
