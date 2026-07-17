@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CRDT Sequence RGA Collaborative Telemetry</title>
+  <!-- Google Fonts for premium typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <div class="dashboard">
+    
+    <!-- Premium Header -->
+    <header class="app-header">
+      <div class="header-main">
+        <div class="logo-group">
+          <!-- Server icon SVG -->
+          <svg class="icon-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+          <div>
+            <h1>RGA-CRDT Observability Dashboard</h1>
+            <p class="subtitle">Distributed Systems Experiment: Sequence Conflict-Free Replicated Data Type (RGA)</p>
+          </div>
+        </div>
+        
+        <div class="system-status">
+          <span class="status-label">Global State:</span>
+          <div id="convergence-badge" class="badge badge-converged">
+            <span class="badge-dot"></span>
+            <span class="badge-text">✓ CONVERGED</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Visual Interactive Explainer & Walkthrough -->
+    <section class="walkthrough-section">
+      <header class="section-title-wrapper">
+        <svg class="icon-help" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+        <h3>How to Test & Observe the Merge Mechanics</h3>
+      </header>
+      <div class="walkthrough-steps">
+        <div class="step-card">
+          <div class="step-num">01</div>
+          <h4>Simulate Real-time Sync</h4>
+          <p>Type characters concurrently in **Alice** and **Bob** panes. Notice how keys sync instantly, and caret positions follow character IDs rather than numeric indexes.</p>
+        </div>
+        <div class="step-card">
+          <div class="step-num">02</div>
+          <h4>Offline Concurrent Edits</h4>
+          <p>Toggle **Charlie** to <span class="pill-inline offline">OFFLINE</span>. Type `CharlieText` inside Charlie's editor. Concurrently type `OnlineText` in Alice. Replicas are now diverged.</p>
+        </div>
+        <div class="step-card">
+          <div class="step-num">03</div>
+          <h4>Reconnect & Auto-Merge</h4>
+          <p>Toggle Charlie back to <span class="pill-inline online">ONLINE</span>. Charlie will show <span class="pill-inline syncing">SYNCING...</span> while catching up. The RGA merges concurrent histories with deterministic tie-breaking.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- System Controls -->
+    <section class="control-panel">
+      <div class="control-left">
+        <!-- Latency Slider -->
+        <div class="slider-group">
+          <div class="slider-label-row">
+            <span>Simulated Network Latency</span>
+            <span id="latency-val" class="slider-val">300ms</span>
+          </div>
+          <input type="range" id="latency-slider" min="0" max="1500" value="300" step="50" class="premium-slider">
+          <div class="slider-ticks">
+            <span>0ms (LAN)</span>
+            <span>750ms</span>
+            <span>1500ms (Satellite)</span>
+          </div>
+        </div>
+
+        <!-- Tombstones Toggle -->
+        <div class="toggle-group">
+          <span class="toggle-label">Pedagogical Debug:</span>
+          <label class="switch-container">
+            <input type="checkbox" id="tombstone-toggle">
+            <span class="switch-slider"></span>
+          </label>
+          <span class="toggle-desc">Show Deleted Tombstones <span class="badge-new">RGA Core</span></span>
+        </div>
+      </div>
+
+      <div class="control-right">
+        <button id="run-tests-btn" class="action-btn secondary-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+          Run Diagnostics
+        </button>
+        <button id="reset-btn" class="action-btn danger-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path></svg>
+          Reset Workspace
+        </button>
+      </div>
+    </section>
+
+    <!-- Diagnostic Log Panel (Collapsible) -->
+    <div id="diagnostic-pane" class="diagnostic-panel hidden">
+      <div class="diag-header">
+        <div class="diag-title">
+          <span class="diag-indicator"></span>
+          <h3>CRDT ALGORITHMIC TEST VERIFICATION REPORT</h3>
+        </div>
+        <button id="close-diag-btn" class="close-btn">&times;</button>
+      </div>
+      <div id="test-results-log" class="test-results-log font-mono"></div>
+    </div>
+
+    <!-- Triple Workspace Cards -->
+    <main class="replica-grid">
+      
+      <!-- Replica A: Alice -->
+      <article class="replica-card site-A" data-site="A">
+        <header class="card-header">
+          <div class="user-profile">
+            <div class="avatar bg-A">A</div>
+            <div>
+              <h3>Alice</h3>
+              <span class="site-label">Local Replica ID: A</span>
+            </div>
+          </div>
+          <button id="toggle-A" class="status-pill online">ONLINE</button>
+        </header>
+
+        <!-- Network connection visual ribbon -->
+        <div class="connection-status-ribbon online" id="ribbon-A">
+          <svg class="icon-conn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg>
+          <span class="conn-text">Active connection to global log</span>
+        </div>
+
+        <div class="presence-bar">
+          <span class="presence-hdr">Presence List:</span>
+          <div class="presence-chips">
+            <span class="pres-chip" id="presence-A-B">
+              <span class="status-dot bg-B"></span> Bob: <span class="status-text">ONLINE</span>
+            </span>
+            <span class="pres-chip" id="presence-A-C">
+              <span class="status-dot bg-C"></span> Charlie: <span class="status-text">ONLINE</span>
+            </span>
+          </div>
+        </div>
+
+        <div class="editor-wrapper">
+          <!-- The Editable Container -->
+          <div id="editor-A" class="editor-pane" tabindex="0" data-site="A"></div>
+          <div class="focus-indicator"></div>
+        </div>
+
+        <footer class="card-footer">
+          <div class="footer-metric">
+            <span class="metric-lbl">VISIBLE LENGTH</span>
+            <span id="char-count-A" class="metric-val">0</span>
+          </div>
+          <div class="footer-metric">
+            <span class="metric-lbl">DATABASE OPS SEEN</span>
+            <span id="ops-seen-A" class="metric-val font-mono">0</span>
+          </div>
+        </footer>
+      </article>
+
+      <!-- Replica B: Bob -->
+      <article class="replica-card site-B" data-site="B">
+        <header class="card-header">
+          <div class="user-profile">
+            <div class="avatar bg-B">B</div>
+            <div>
+              <h3>Bob</h3>
+              <span class="site-label">Local Replica ID: B</span>
+            </div>
+          </div>
+          <button id="toggle-B" class="status-pill online">ONLINE</button>
+        </header>
+
+        <!-- Network connection visual ribbon -->
+        <div class="connection-status-ribbon online" id="ribbon-B">
+          <svg class="icon-conn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg>
+          <span class="conn-text">Active connection to global log</span>
+        </div>
+
+        <div class="presence-bar">
+          <span class="presence-hdr">Presence List:</span>
+          <div class="presence-chips">
+            <span class="pres-chip" id="presence-B-A">
+              <span class="status-dot bg-A"></span> Alice: <span class="status-text">ONLINE</span>
+            </span>
+            <span class="pres-chip" id="presence-B-C">
+              <span class="status-dot bg-C"></span> Charlie: <span class="status-text">ONLINE</span>
+            </span>
+          </div>
+        </div>
+
+        <div class="editor-wrapper">
+          <div id="editor-B" class="editor-pane" tabindex="0" data-site="B"></div>
+          <div class="focus-indicator"></div>
+        </div>
+
+        <footer class="card-footer">
+          <div class="footer-metric">
+            <span class="metric-lbl">VISIBLE LENGTH</span>
+            <span id="char-count-B" class="metric-val">0</span>
+          </div>
+          <div class="footer-metric">
+            <span class="metric-lbl">DATABASE OPS SEEN</span>
+            <span id="ops-seen-B" class="metric-val font-mono">0</span>
+          </div>
+        </footer>
+      </article>
+
+      <!-- Replica C: Charlie -->
+      <article class="replica-card site-C" data-site="C">
+        <header class="card-header">
+          <div class="user-profile">
+            <div class="avatar bg-C">C</div>
+            <div>
+              <h3>Charlie</h3>
+              <span class="site-label">Local Replica ID: C</span>
+            </div>
+          </div>
+          <button id="toggle-C" class="status-pill online">ONLINE</button>
+        </header>
+
+        <!-- Network connection visual ribbon -->
+        <div class="connection-status-ribbon online" id="ribbon-C">
+          <svg class="icon-conn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg>
+          <span class="conn-text">Active connection to global log</span>
+        </div>
+
+        <div class="presence-bar">
+          <span class="presence-hdr">Presence List:</span>
+          <div class="presence-chips">
+            <span class="pres-chip" id="presence-C-A">
+              <span class="status-dot bg-A"></span> Alice: <span class="status-text">ONLINE</span>
+            </span>
+            <span class="pres-chip" id="presence-C-B">
+              <span class="status-dot bg-B"></span> Bob: <span class="status-text">ONLINE</span>
+            </span>
+          </div>
+        </div>
+
+        <div class="editor-wrapper">
+          <div id="editor-C" class="editor-pane" tabindex="0" data-site="C"></div>
+          <div class="focus-indicator"></div>
+        </div>
+
+        <footer class="card-footer">
+          <div class="footer-metric">
+            <span class="metric-lbl">VISIBLE LENGTH</span>
+            <span id="char-count-C" class="metric-val">0</span>
+          </div>
+          <div class="footer-metric">
+            <span class="metric-lbl">DATABASE OPS SEEN</span>
+            <span id="ops-seen-C" class="metric-val font-mono">0</span>
+          </div>
+        </footer>
+      </article>
+
+    </main>
+
+    <!-- Operations Telemetry Console -->
+    <section class="telemetry-console">
+      <header class="console-header">
+        <div class="console-title-group">
+          <span class="terminal-ring"></span>
+          <h2>SEQUENCED DATABASE TRANSACTION LEDGER</h2>
+        </div>
+        <div class="console-filters">
+          <span class="filter-lbl">Filter Source:</span>
+          <button class="filter-btn active" data-filter="all">ALL</button>
+          <button class="filter-btn" data-filter="A">ALICE (A)</button>
+          <button class="filter-btn" data-filter="B">BOB (B)</button>
+          <button class="filter-btn" data-filter="C">CHARLIE (C)</button>
+        </div>
+      </header>
+
+      <div class="terminal-window">
+        <div id="sync-log-entries" class="terminal-body font-mono">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
